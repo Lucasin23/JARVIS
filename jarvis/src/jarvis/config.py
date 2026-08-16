@@ -551,7 +551,7 @@ def get_default_config() -> Dict[str, Any]:
         "whisper_device": "auto",  # "cuda" (recommended if available), "auto", or "cpu" (only for faster-whisper)
         "whisper_compute_type": "int8",
         "whisper_vad": True,
-        "whisper_min_confidence": 0.1,  # Filter low-confidence segments (hallucinations)
+        "whisper_min_confidence": 0.3,  # Filter low-confidence segments (hallucinations)
         "whisper_no_speech_threshold": 0.5,  # Hard cutoff: reject segments where no_speech_prob >= this
         "whisper_min_audio_duration": 0.15,
         "whisper_min_word_length": 1,

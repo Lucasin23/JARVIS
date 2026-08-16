@@ -30,8 +30,6 @@ if sys.platform == 'win32' and not getattr(sys, 'frozen', False):
         pass
 
 from typing import Optional
-from faster_whisper import WhisperModel
-
 from .config import load_settings
 from .memory.db import Database
 from .memory.conversation import DialogueMemory, update_diary_from_dialogue_memory
@@ -316,6 +314,28 @@ def main(smoke_test: bool = False) -> None:
     _install_signal_handlers()
 
     cfg = load_settings()
+
+    # Smoke mode validates Jarvis' production composition without opening a
+    # microphone, loading native ML runtimes, speaking audio, or starting MCP
+    # subprocesses. It is safe for CI, installers, and first-run diagnostics.
+    if smoke_test:
+        db = Database(":memory:", None)
+        try:
+            DialogueMemory(inactivity_timeout=cfg.dialogue_memory_timeout, max_interactions=20)
+            from .llm import get_embedding_backend, get_llm_backend
+            from .tools.registry import BUILTIN_TOOLS
+
+            get_llm_backend(cfg)
+            get_embedding_backend(cfg)
+            if not BUILTIN_TOOLS:
+                raise RuntimeError("no built-in tools registered")
+            print("✅ Hardware-free components initialised", flush=True)
+            print("SMOKE_TEST_INIT_OK", flush=True)
+            debug_log("hardware-free smoke test completed", "jarvis")
+        finally:
+            db.close()
+        return
+
     db = Database(cfg.db_path, cfg.sqlite_vss_path)
 
     debug_log("daemon started", "jarvis")
@@ -546,54 +566,6 @@ def main(smoke_test: bool = False) -> None:
             print(f"  ⚠ Dictation not available: {e}", flush=True)
     else:
         print("🎙️ Dictation disabled", flush=True)
-
-    if smoke_test:
-        print("SMOKE_TEST_INIT_OK", flush=True)
-        debug_log("smoke test: all components initialised successfully", "jarvis")
-
-        # Clean shutdown: stop engines, close database, tear down MCP runtime.
-        # The caller is responsible for printing SMOKE_TEST_PASSED / FAILED.
-        if dictation is not None:
-            try:
-                dictation.stop()
-            except Exception:
-                pass
-
-        if voice_thread is not None:
-            try:
-                voice_thread.stop()
-                voice_thread.join(timeout=2.0)
-            except Exception:
-                pass
-
-        if tts is not None:
-            try:
-                tts.stop()
-            except Exception:
-                pass
-
-        try:
-            from .tools.external.mcp_runtime import shutdown_runtime
-            shutdown_runtime()
-        except Exception:
-            pass
-
-        db.close()
-
-        if _warm_profile_graph_listener is not None:
-            try:
-                from .memory.graph import unregister_graph_mutation_listener
-                unregister_graph_mutation_listener(_warm_profile_graph_listener)
-            except Exception:
-                pass
-            _warm_profile_graph_listener = None
-
-        # Reset module-level globals so in-process re-entry is clean.
-        _global_dialogue_memory = None
-        _global_tts_engine = None
-        _global_dictation_engine = None
-
-        return
 
     # Periodic diary update checking
     last_diary_check = time.time()

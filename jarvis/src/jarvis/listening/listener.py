@@ -12,6 +12,7 @@ import time
 import queue
 import sys
 import platform
+import subprocess
 from collections import deque
 from typing import Optional, TYPE_CHECKING, Any
 from datetime import datetime
@@ -73,9 +74,13 @@ except OSError as e:
         print("     On Linux, ensure PortAudio is installed: sudo apt install libportaudio2", flush=True)
     del _sys
 
-# Whisper backend imports - try MLX first on Apple Silicon, fall back to faster-whisper
+# Whisper backends are deliberately loaded lazily. Importing MLX Whisper can
+# initialise native Metal libraries, which must never happen while importing
+# the daemon, desktop app, or a hardware-free test.
 MLX_WHISPER_AVAILABLE = False
 FASTER_WHISPER_AVAILABLE = False
+mlx_whisper = None
+WhisperModel = None
 
 def _is_apple_silicon() -> bool:
     """Check if running on Apple Silicon Mac."""
@@ -248,20 +253,53 @@ def _print_cuda_unavailable_hint(missing_libs: list[str]) -> None:
     )
 
 
-try:
-    if _is_apple_silicon():
-        import mlx_whisper
-        MLX_WHISPER_AVAILABLE = True
-except Exception:
-    mlx_whisper = None
+def _load_mlx_whisper() -> bool:
+    """Load MLX Whisper after a subprocess preflight on Apple Silicon.
 
-try:
-    from faster_whisper import WhisperModel
-    FASTER_WHISPER_AVAILABLE = True
-except Exception:
-    # Catch broad: the faster-whisper import chain can raise ValueError
-    # (e.g. "psutil.__spec__ is not set") in some environments.
-    WhisperModel = None
+    A broken native MLX installation can abort the interpreter rather than
+    raise a Python exception. The preflight contains that failure in a child
+    process, allowing Jarvis to select faster-whisper instead.
+    """
+    global MLX_WHISPER_AVAILABLE, mlx_whisper
+    if MLX_WHISPER_AVAILABLE and mlx_whisper is not None:
+        return True
+    if not _is_apple_silicon():
+        return False
+    try:
+        probe = subprocess.run(
+            [sys.executable, "-c", "import mlx_whisper"],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+        if probe.returncode != 0:
+            debug_log("MLX Whisper native import preflight failed", "voice")
+            return False
+        import mlx_whisper as loaded_mlx_whisper
+        mlx_whisper = loaded_mlx_whisper
+        MLX_WHISPER_AVAILABLE = True
+        return True
+    except Exception as exc:
+        debug_log(f"MLX Whisper unavailable: {exc}", "voice")
+        return False
+
+
+def _load_faster_whisper() -> bool:
+    """Load faster-whisper only when speech recognition is started."""
+    global FASTER_WHISPER_AVAILABLE, WhisperModel
+    if FASTER_WHISPER_AVAILABLE and WhisperModel is not None:
+        return True
+    try:
+        from faster_whisper import WhisperModel as loaded_whisper_model
+        WhisperModel = loaded_whisper_model
+        FASTER_WHISPER_AVAILABLE = True
+        return True
+    except Exception as exc:
+        # The import chain can raise non-ImportError exceptions when another
+        # optional native dependency is partially initialised.
+        debug_log(f"faster-whisper unavailable: {exc}", "voice")
+        return False
 
 
 def _is_faster_whisper_turbo_supported() -> bool:
@@ -1487,7 +1525,7 @@ class VoiceListener(threading.Thread):
         backend_pref = getattr(self.cfg, "whisper_backend", "auto")
 
         if backend_pref == "mlx":
-            if MLX_WHISPER_AVAILABLE:
+            if _load_mlx_whisper():
                 return "mlx"
             debug_log("MLX Whisper requested but not available, falling back to faster-whisper", "voice")
             return "faster-whisper"
@@ -1496,7 +1534,7 @@ class VoiceListener(threading.Thread):
             return "faster-whisper"
 
         # Auto mode: prefer MLX on Apple Silicon
-        if MLX_WHISPER_AVAILABLE and _is_apple_silicon():
+        if _is_apple_silicon() and _load_mlx_whisper():
             return "mlx"
 
         return "faster-whisper"
@@ -1803,7 +1841,7 @@ class VoiceListener(threading.Thread):
                 model_name = "large-v3"
 
         if self._whisper_backend == "mlx":
-            if not MLX_WHISPER_AVAILABLE:
+            if not _load_mlx_whisper():
                 debug_log("MLX Whisper not available", "voice")
                 print("  ❌ MLX Whisper not available. Install with: pip install mlx-whisper", flush=True)
                 return
@@ -1849,7 +1887,7 @@ class VoiceListener(threading.Thread):
                     return
         else:
             # faster-whisper backend
-            if not FASTER_WHISPER_AVAILABLE:
+            if not _load_faster_whisper():
                 debug_log("faster-whisper not available", "voice")
                 print("  ❌ faster-whisper not available. Install with: pip install faster-whisper", flush=True)
                 return
@@ -2272,12 +2310,12 @@ class VoiceListener(threading.Thread):
                 pass
 
             # Track start time for audio health monitoring
-            _audio_start_time = time.time()
+            _audio_start_time = time.monotonic()
             _audio_health_logged = False
 
             while not self._should_stop:
                 # One-time audio health check after 5 seconds
-                if not _audio_health_logged and time.time() - _audio_start_time > 5:
+                if not _audio_health_logged and time.monotonic() - _audio_start_time > 5:
                     _audio_health_logged = True
                     if self._callback_count == 0:
                         print("  ⚠️  No audio received after 5 seconds!", flush=True)
