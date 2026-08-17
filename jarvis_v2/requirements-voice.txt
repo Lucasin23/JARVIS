@@ -1,0 +1,9 @@
+# Voice input dependencies (optional)
+# Install only if you want microphone voice input.
+# PyAudio can be tricky to install - see README.md for platform instructions.
+
+SpeechRecognition>=3.10.0
+pyaudio>=0.2.13
+
+# Alternative: Better offline STT with Whisper (heavier, but more accurate)
+# faster-whisper>=1.0.0

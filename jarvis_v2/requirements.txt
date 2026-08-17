@@ -1,0 +1,16 @@
+# Core dependencies (required for all modes)
+python-dotenv>=1.0.0
+requests>=2.31.0
+psutil>=5.9.0
+send2trash>=1.8.0  # Safe file deletion (moves to Trash instead of permanent delete)
+
+# Text-to-Speech (offline, works on macOS natively)
+pyttsx3>=2.90
+
+# Optional: OpenAI-compatible LLM integration
+# Supports: OpenAI, Groq, Together AI, Ollama (local), etc.
+openai>=1.10.0
+
+# NOTE: Voice input (microphone) requires extra dependencies.
+# Install them from requirements-voice.txt:
+#   pip install -r requirements-voice.txt
