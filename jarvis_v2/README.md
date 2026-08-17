@@ -88,6 +88,52 @@ Built in Python with full macOS system control — open/close apps, volume, brig
 - Conversation history for context
 - Supports any OpenAI-compatible API (OpenAI, Groq, Together AI, Ollama, etc.)
 
+### Wake-Word "Hey JARVIS" (Optional)
+- Hands-free activation: say "Hey JARVIS" to wake the assistant
+- Primary engine: Porcupine by Picovoice (offline, lightweight, always-on)
+- Fallback engine: SpeechRecognition loop (requires internet)
+- Destructive commands require typed confirmation in wake-word mode (safety)
+
+## Wake-Word Setup ("Hey JARVIS")
+
+JARVIS supports hands-free activation with the wake word "Hey JARVIS."
+
+### Option 1: Porcupine (Recommended — Offline)
+
+1. Sign up for a free Picovoice account at [console.picovoice.ai](https://console.picovoice.ai/)
+2. Copy your Access Key
+3. Install dependencies:
+```bash
+pip install -r requirements-wake.txt
+```
+4. Add your key to `.env`:
+```env
+PICOVOICE_ACCESS_KEY=your_key_here
+```
+5. Run:
+```bash
+python main.py --wake-word
+```
+
+Porcupine runs entirely offline and uses minimal CPU/battery. It includes a built-in "jarvis" keyword. For an exact "Hey JARVIS" phrase, you can train a custom keyword model at the Picovoice Console and set `PORCUPINE_KEYWORD_PATH` in `.env`.
+
+### Option 2: SpeechRecognition Fallback (Requires Internet)
+
+If Porcupine isn't installed, JARVIS automatically falls back to a SpeechRecognition-based loop that listens for the word "JARVIS" via Google STT. This uses more battery and requires an internet connection.
+
+```bash
+pip install -r requirements-voice.txt
+python main.py --wake-word
+```
+
+### How Wake-Word Mode Works
+
+1. JARVIS listens passively for "Hey JARVIS" (or "JARVIS")
+2. When detected, it responds "Yes, sir?"
+3. You speak your command
+4. JARVIS executes it and returns to listening for the wake word
+5. For safety, destructive commands (file deletion, `rm`, `git push`, etc.) require typed confirmation in wake-word mode
+
 ## Quick Start
 
 ### 1. Install Dependencies
@@ -117,6 +163,9 @@ python main.py
 
 # Full voice mode (speak + hear responses)
 python main.py --voice
+
+# Wake-word mode: say "Hey JARVIS" to activate hands-free
+python main.py --wake-word
 
 # Voice input, text output (quiet environments)
 python main.py --voice-in
@@ -233,6 +282,13 @@ python main.py --no-proactive
 | Quote | "inspire me" |
 | Dice | "roll dice" or "roll 2d20" |
 
+### Wake-Word Mode
+| Command | Example |
+|---------|---------|
+| Activate | Say "Hey JARVIS" |
+| Then speak command | "open Safari", "what time is it", etc. |
+| Destructive commands | Require typed confirmation |
+
 ### Basic
 | Command | Example |
 |---------|---------|
@@ -252,6 +308,7 @@ jarvis_assistant/
 ├── main.py              # Entry point with CLI argument parsing
 ├── assistant.py         # Core interaction loop (ties everything together)
 ├── speech.py            # TTS (text-to-speech) and STT (speech-to-text) helpers
+├── wake_word.py         # Wake-word detection (Porcupine + SR fallback)
 ├── commands.py          # Command routing registry (integrates all modules)
 ├── llm.py               # Optional AI conversation + command interpretation layer
 ├── macos_control.py     # macOS automation via AppleScript (apps, volume, brightness, etc.)
@@ -264,6 +321,7 @@ jarvis_assistant/
 ├── advanced_tools.py    # Clipboard history, code execution, password gen, text utils
 ├── requirements.txt     # Core Python dependencies
 ├── requirements-voice.txt  # Optional voice input dependencies
+├── requirements-wake.txt  # Optional wake-word detection dependencies
 ├── .env.example         # Template for environment variables
 └── README.md            # This file
 ```

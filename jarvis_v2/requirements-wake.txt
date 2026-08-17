@@ -1,0 +1,14 @@
+# Wake-word detection dependencies (optional)
+# Enables "Hey JARVIS" hands-free activation.
+#
+# Primary engine: Porcupine by Picovoice (offline, lightweight, always-on)
+# Sign up for a free access key at: https://console.picovoice.ai/
+#
+# Install:
+#   pip install -r requirements-wake.txt
+#
+# If Porcupine is unavailable, JARVIS falls back to a simple
+# SpeechRecognition-based wake-word loop (requires internet for Google STT).
+
+pvporcupine>=3.0.0
+pvrecorder>=1.2.0
