@@ -104,6 +104,7 @@ hiddenimports = [
     'desktop_app.face_widget',
     'desktop_app.diary_dialog',
     'desktop_app.memory_viewer',
+    'desktop_app.hud_server',
     # Listening modules
     'jarvis.listening',
     'jarvis.listening.echo_detection',

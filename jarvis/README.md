@@ -170,6 +170,7 @@ Jarvis starts listening automatically — just say "Jarvis" and talk!
 - **Natural Voice** - Say "Jarvis" anywhere in your sentence, interrupt with "stop", follow up without repeating the wake word
 - **Dictation Mode** - Free, offline alternative to WisprFlow — hold a hotkey, speak, release to paste text into any app
 - **MCP Integration** - Connect to thousands of external tools (Home Assistant, GitHub, Slack, etc.)
+- **Iron Man–style HUD** - A cinematic heads-up display (arc reactor, rotating rings, radar sweep, live waveform, system diagnostics) that mirrors the assistant's state in real time. Open it from the tray menu → **◎ JARVIS HUD** (or run `python -m desktop_app.hud_server`). It opens in your browser, or embedded when PyQt6-WebEngine is available.
 
 ## System Requirements
 

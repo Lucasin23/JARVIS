@@ -20,6 +20,7 @@ src/desktop_app/
 ├── setup_wizard.py      # First-run setup wizard
 ├── settings_window.py   # Auto-generated settings UI from config metadata
 ├── face_widget.py       # Animated face visualization
+├── hud_server.py        # Iron Man–style HUD (Flask + canvas, served on port 5060)
 ├── themes.py            # Qt stylesheets and color palette
 ├── diary_dialog.py      # End-of-session diary update dialog
 ├── memory_viewer.py     # Flask-based memory browser

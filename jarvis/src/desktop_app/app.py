@@ -1240,6 +1240,135 @@ class MemoryViewerWindow(QMainWindow):
         event.accept()
 
 
+class HudWindow(MemoryViewerWindow):
+    """Iron Man–style heads-up display window.
+
+    A thin specialisation of :class:`MemoryViewerWindow` that serves the
+    ``desktop_app.hud_server`` Flask app (the canvas HUD) on its own port and
+    opens it in the system browser (or embedded WebEngine when available).
+    The HUD reads assistant state from the shared ``jarvis_state`` file, so it
+    stays in sync with the face widget and daemon even across processes.
+    """
+
+    MEMORY_VIEWER_PORT = 5060
+    _SERVER_MODULE = "desktop_app.hud_server"
+
+    def __init__(self):
+        # Reuse the parent layout, then relabel the fallback view for the HUD.
+        super().__init__()
+        self.setWindowTitle("◎ JARVIS HUD")
+        for child in self.findChildren(QLabel):
+            if child.text() == "Memory Viewer":
+                child.setText("JARVIS HUD")
+                break
+
+    def start_server(self) -> bool:  # type: ignore[override]
+        """Start the HUD Flask server (mirrors the memory viewer logic)."""
+        if self.is_server_running:
+            debug_log("hud server already running (skipping start)", "desktop")
+            return True
+
+        print("◎ Starting JARVIS HUD server...", flush=True)
+
+        try:
+            import socket
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            result = sock.connect_ex(('localhost', self.MEMORY_VIEWER_PORT))
+            sock.close()
+
+            if result == 0:
+                self.is_server_running = True
+                print(f"   ✓ Server already running on port {self.MEMORY_VIEWER_PORT}", flush=True)
+                debug_log(f"hud server already running on port {self.MEMORY_VIEWER_PORT}", "desktop")
+                return True
+
+            is_frozen = getattr(sys, 'frozen', False)
+
+            if is_frozen:
+                try:
+                    mod = __import__(self._SERVER_MODULE, fromlist=["app"])
+                    flask_app = mod.app
+                except Exception as import_err:
+                    debug_log(f"failed to import {self._SERVER_MODULE}: {import_err}", "desktop")
+                    return False
+
+                def run_flask_server():
+                    try:
+                        import logging
+                        logging.getLogger('werkzeug').setLevel(logging.ERROR)
+                        flask_app.run(
+                            host="127.0.0.1",
+                            port=self.MEMORY_VIEWER_PORT,
+                            debug=False,
+                            use_reloader=False,
+                            threaded=True,
+                        )
+                    except Exception as server_err:
+                        debug_log(f"hud server error: {server_err}", "desktop")
+
+                self.server_thread = threading.Thread(target=run_flask_server, daemon=True)
+                self.server_thread.start()
+                debug_log("hud server started in thread (bundled mode)", "desktop")
+                import time
+                time.sleep(1)
+                self.is_server_running = True
+                return True
+            else:
+                python_exe = sys.executable
+                env = os.environ.copy()
+                src_path = Path(__file__).parent.parent  # Go up to src/
+                if "PYTHONPATH" in env:
+                    env["PYTHONPATH"] = f"{src_path}{os.pathsep}{env['PYTHONPATH']}"
+                else:
+                    env["PYTHONPATH"] = str(src_path)
+                env["PYTHONIOENCODING"] = "utf-8"
+
+                creationflags = 0
+                if sys.platform == 'win32':
+                    creationflags = subprocess.CREATE_NO_WINDOW
+
+                self.server_process = subprocess.Popen(
+                    [python_exe, "-m", self._SERVER_MODULE],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    stdin=subprocess.PIPE,
+                    text=True,
+                    encoding='utf-8',
+                    errors='replace',
+                    env=env,
+                    creationflags=creationflags,
+                )
+                debug_log("hud server started in subprocess (development mode)", "desktop")
+
+            # Wait for the server to actually start listening.
+            import time
+            import socket as _socket
+            max_wait = 5
+            start_time = time.time()
+            while time.time() - start_time < max_wait:
+                if self.server_process and self.server_process.poll() is not None:
+                    self.server_process = None
+                    return False
+                s = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+                res = s.connect_ex(('127.0.0.1', self.MEMORY_VIEWER_PORT))
+                s.close()
+                if res == 0:
+                    self.is_server_running = True
+                    print(f"   ✓ HUD running on port {self.MEMORY_VIEWER_PORT}", flush=True)
+                    debug_log(f"hud server confirmed running on port {self.MEMORY_VIEWER_PORT}", "desktop")
+                    return True
+                time.sleep(0.2)
+
+            print(f"   ✗ HUD server failed to start within {max_wait}s", flush=True)
+            debug_log(f"hud server failed to start within {max_wait}s", "desktop")
+            return False
+
+        except Exception as e:
+            print(f"   ✗ Exception starting HUD server: {e}", flush=True)
+            debug_log(f"failed to start hud server: {e}", "desktop")
+            return False
+
+
 class JarvisSystemTray:
     """System tray application for Jarvis voice assistant."""
 
@@ -1266,6 +1395,9 @@ class JarvisSystemTray:
 
         # Create memory viewer window (hidden by default)
         self.memory_viewer = MemoryViewerWindow()
+
+        # Create Iron Man–style HUD window (hidden by default)
+        self.hud_window = HudWindow()
 
         # Create face window (hidden by default)
         # Note: Creating the face window also initializes the SpeakingState singleton
@@ -1333,6 +1465,9 @@ class JarvisSystemTray:
         # Stop memory viewer server
         if hasattr(self, 'memory_viewer'):
             self.memory_viewer.stop_server()
+        # Stop the HUD server
+        if hasattr(self, 'hud_window'):
+            self.hud_window.stop_server()
         # Safety net: if daemon process exists but is_listening was False, still clean up
         # (This shouldn't happen in normal operation, but handles edge cases)
         if self.daemon_process:
@@ -1367,6 +1502,11 @@ class JarvisSystemTray:
         self.memory_action = QAction("🧠 Memory Viewer")
         self.memory_action.triggered.connect(self.show_memory_viewer)
         self.menu.addAction(self.memory_action)
+
+        # Iron Man–style HUD action
+        self.hud_action = QAction("◎ JARVIS HUD")
+        self.hud_action.triggered.connect(self.show_hud)
+        self.menu.addAction(self.hud_action)
 
         # Dictation history action
         self.dictation_history_action = QAction("🎙️ Dictation History")
@@ -1617,6 +1757,12 @@ class JarvisSystemTray:
         self.memory_viewer.show()
         self.memory_viewer.raise_()
         self.memory_viewer.activateWindow()
+
+    def show_hud(self) -> None:
+        """Open the Iron Man–style HUD (browser or embedded view)."""
+        self.hud_window.show()
+        self.hud_window.raise_()
+        self.hud_window.activateWindow()
 
     def show_dictation_history(self) -> None:
         """Show the dictation history window and bring it to front."""
