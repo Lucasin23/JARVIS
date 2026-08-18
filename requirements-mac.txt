@@ -1,0 +1,4 @@
+SpeechRecognition>=3.10
+PyAudio>=0.2.14
+numpy<2
+openwakeword>=0.6
