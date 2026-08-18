@@ -1,0 +1,8 @@
+# JARVIS root prototype — Python dependencies
+# macOS: PyAudio needs PortAudio. Install with: brew install portaudio
+# Linux: sudo apt install portaudio19-dev python3-pyaudio
+
+SpeechRecognition>=3.10.0
+PyAudio>=0.2.13
+numpy>=1.24.0
+openwakeword>=0.6.0
