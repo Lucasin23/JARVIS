@@ -62,7 +62,7 @@ class JarvisManager:
         try:
             while True:
                 self.status.set(state="listening")
-                activated,_=self.wake.wait_for_wake_word(self.voice)
+                activated=self.wake.wait_for_wake_word(self.voice)
                 if not activated: continue
                 self.say("Yes, sir?")
                 command=self.voice.listen(timeout=8,phrase_time_limit=12)
