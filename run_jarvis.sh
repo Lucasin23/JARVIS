@@ -15,7 +15,13 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-PYTHON="${PYTHON:-python3}"
+# Prefer the venv created by setup_mac.sh if it exists.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [ -z "${PYTHON:-}" ] && [ -x "$SCRIPT_DIR/.venv/bin/python" ]; then
+  PYTHON="$SCRIPT_DIR/.venv/bin/python"
+elif [ -z "${PYTHON:-}" ]; then
+  PYTHON="python3"
+fi
 
 # --- 1. Python ---------------------------------------------------------------
 if ! command -v "$PYTHON" >/dev/null 2>&1; then
