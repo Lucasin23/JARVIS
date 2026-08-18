@@ -40,6 +40,22 @@ voice_module = importlib.import_module("02_Voice.voice")
 JarvisVoice = voice_module.JarvisVoice
 
 
+# ------------------------------------------------------------
+# VOICE OUTPUT (TTS)
+# ------------------------------------------------------------
+# JARVIS supports two voice backends (see 08_Configuration/voices.json):
+#   - kokoro     : the original local JARVIS voice ("bm_george")
+#   - elevenlabs : the winning Jarvis voice (Paul-Bettany-like,
+#                  voice_id xbpwjFFJpcRThvL5EyVi)
+# The ElevenLabs voice is used when ELEVENLABS_API_KEY is set; otherwise
+# JARVIS falls back to the local Kokoro voice automatically. The old voice
+# is always kept as a fallback.
+# ------------------------------------------------------------
+
+_tts_module = importlib.import_module("02_Voice.tts")
+_tts_speak = _tts_module.speak
+
+
 # ============================================================
 # MEMORY
 # ============================================================
@@ -69,18 +85,7 @@ def speak(response, speed="1.0"):
 
     print("JARVIS:", response)
 
-    subprocess.run([
-        "uv",
-        "tool",
-        "run",
-        "kokoro-tts-tool",
-        "synthesize",
-        "-v",
-        "bm_george",
-        "--speed",
-        speed,
-        response
-    ])
+    _tts_speak(response, speed)
 
 
 # ============================================================
@@ -107,18 +112,7 @@ while True:
     # JARVIS ACTIVATED
     # --------------------------------------------------------
 
-    subprocess.run([
-        "uv",
-        "tool",
-        "run",
-        "kokoro-tts-tool",
-        "synthesize",
-        "-v",
-        "bm_george",
-        "--speed",
-        "0.90",
-        "Yes, sir?"
-    ])
+    speak("Yes, sir?", speed="0.90")
 
 
     # --------------------------------------------------------

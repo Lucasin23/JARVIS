@@ -1,0 +1,26 @@
+{
+  "_comment": "JARVIS voice backends. 'active' picks which voice the interface uses. The ElevenLabs voice (winning Jarvis match, Paul-Bettany-like) is used when ELEVENLABS_API_KEY is set; otherwise JARVIS falls back to the original local Kokoro voice automatically.",
+  "active": "elevenlabs",
+  "voices": {
+    "kokoro": {
+      "backend": "kokoro",
+      "label": "Original JARVIS voice (local)",
+      "voice": "bm_george",
+      "speed": "1.0",
+      "command": ["uv", "tool", "run", "kokoro-tts-tool", "synthesize", "-v", "bm_george"]
+    },
+    "elevenlabs": {
+      "backend": "elevenlabs",
+      "label": "Winning Jarvis voice (Paul-Bettany-like)",
+      "voice_id": "xbpwjFFJpcRThvL5EyVi",
+      "model_id": "eleven_multilingual_v2",
+      "voice_settings": {
+        "stability": 0.75,
+        "similarity_boost": 0.85,
+        "style": 0.0,
+        "use_speaker_boost": true
+      },
+      "output_format": "mp3_44100_128"
+    }
+  }
+}
